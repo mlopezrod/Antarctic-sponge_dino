@@ -1,0 +1,82 @@
+Sample	SampleID	Label	Sampletype	Summer	Year	Date sampling	Site	Lat_S	Long_W	Depth (m)	Genus	Samples_names
+E16	E16	Myca_E16	sponge	2019	2019	2019-11-30	SE3	62°29'24.8''	59°40'08.4''	10	Mycale	Mycale sp.
+E22-SE06	E22_S6	Dant_E22.S6	sponge	2019	2019	2019-12-07	SE6	62°29'46.4''	59°41'31.3''	11	Dendrilla	Dendrilla antarctica
+E24-1	E24.1	Mace_E24.1	sponge	2019	2020	2020-02-25	SE2	62°29'23.7''	59°40'05.5''	13	Mycale	Mycale acerata
+E26-2	E26.2	Mace_E26.2	sponge	2019	2020	2020-02-28	SE2	60°29'25.1''	59°40'06.8''	13	Mycale	Mycale acerata
+E26-4	E26.4	Mace_E26.4	sponge	2019	2020	2020-02-28	SE2	60°29'25.1''	59°40'06.8''	13	Mycale	Mycale acerata
+E27-3	E27.3	MyxB_E27.3	sponge	2019	2020	2020-02-28	SE2	60°29'25.1''	59°40'06.8''	13	Myxilla (Burtonanchora)	Myxilla (Burtonanchora) sp.
+E27-4	E27.4	MyxB_E27.4	sponge	2019	2020	2020-02-28	SE2	60°29'25.1''	59°40'06.8''	13	Myxilla (Burtonanchora)	Myxilla (Burtonanchora) sp.
+E29-2	E29	Dant_E29	sponge	2019	2020	2020-03-02	SE2	60°29'24.5''	59°40'07.3''	15	Dendrilla	Dendrilla antarctica
+E30-2-R1	E30	Mace_E30	sponge	2019	2020	2020-03-02	SE2	60°29'24.5''	59°40'07.3''	15	Mycale	Mycale acerata
+E30-2	E30.1	Mace_E30.1	sponge	2019	2020	2020-03-02	SE2	60°29'24.5''	59°40'07.3''	15	Mycale	Mycale acerata
+E30-2-R3	E30.3	Mace_E30.3	sponge	2019	2020	2020-03-02	SE2	60°29'24.5''	59°40'07.3''	15	Mycale	Mycale acerata
+E34-2	E34.2	Myca_E34.2	sponge	2020	2020	2020-12-18	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale sp.
+E36-2	E36.2	MyxB_E36.2	sponge	2020	2020	2020-12-23	SE3	60°29'24.5''	59°40'07.3''	12	Myxilla (Burtonanchora)	Myxilla (Burtonanchora) sp.
+E37	E37	Mace_E37	sponge	2020	2020	2020-12-23	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale acerata
+E43	E43	Isod_E43	sponge	2020	2020	2020-12-23	SE3	60°29'24.5''	59°40'07.3''	12	Isodictya	Isodictya sp.
+E44	E44	Mace_E44	sponge	2020	2020	2020-12-23	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale acerata
+E45	E45	Myca_E45	sponge	2020	2020	2020-12-23	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale sp.
+E46	E46	Mmag_E46	sponge	2020	2020	2020-12-28	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale magellanica
+E50	E50	MyxB_E50	sponge	2020	2020	2020-12-28	SE3	60°29'24.5''	59°40'07.3''	12	Myxilla (Burtonanchora)	Myxilla (Burtonanchora) sp.
+E54	E54	Dant_E54	sponge	2020	2020	2020-12-28	SE3	60°29'24.5''	59°40'07.3''	12	Dendrilla	Dendrilla antarctica
+E55	E55	Mbou_E55	sponge	2020	2020	2020-12-28	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale bouryesnaultae
+E58	E58	Isod_E58	sponge	2020	2021	2021-01-05	SE3	60°29'24.5''	59°40'07.3''	12	Isodictya	Isodictya sp.
+E60	E60	Ioph_E60	sponge	2020	2021	2021-01-05	SE3	60°29'24.5''	59°40'07.3''	12	Iophon	Iophon sp.
+E61	E61	MyxB_E61	sponge	2020	2021	2021-01-05	SE3	60°29'24.5''	59°40'07.3''	12	Myxilla (Burtonanchora)	Myxilla (Burtonanchora) sp.
+E62	E62	Mbou_E62	sponge	2020	2021	2021-01-05	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale bouryesnaultae
+E63	E63	Myca_E63	sponge	2020	2021	2021-01-05	SE3	60°29'24.5''	59°40'07.3''	12	Mycale	Mycale sp.
+E66	E66	Myca_E66	sponge	2020	2021	2021-01-12	SE3	60°29'24.5''	59°40'07.3''	10	Mycale	Mycale sp.
+E68	E68	Mace_E68	sponge	2020	2021	2021-01-12	SE3	60°29'24.5''	59°40'07.3''	10	Mycale	Mycale acerata
+E70	E70	Dant_E70	sponge	2020	2021	2021-01-12	SE3	60°29'24.5''	59°40'07.3''	10	Dendrilla	Dendrilla antarctica
+E72	E72	Teda_E72	sponge	2020	2021	2021-01-12	SE3	60°29'24.5''	59°40'07.3''	10	Tedania	Tedania sp.
+E80	E80	Mace_E80	sponge	2020	2021	2021-01-18	SE3	60°29'24.5''	59°40'07.3''	10	Mycale	Mycale acerata
+E82	E82	Mace_E82	sponge	2020	2021	2021-01-18	SE3	60°29'24.5''	59°40'07.3''	10	Mycale	Mycale acerata
+E84	E84	Mace_E84	sponge	2020	2021	2021-01-18	SE3	60°29'24.5''	59°40'07.3''	11	Mycale	Mycale acerata
+E87	E87	Isod_E87	sponge	2020	2021	2021-01-28	SE3	60°29'24.5''	59°40'07.3''	11	Isodictya	Isodictya sp.
+E93	E93	Mace_E93	sponge	2020	2021	2021-01-28	SE3	60°29'24.5''	59°40'07.3''	11	Mycale	Mycale acerata
+E95	E95	Mace_E95	sponge	2020	2021	2021-01-28	SE3	60°29'24.5''	59°40'07.3''	11	Mycale	Mycale acerata
+E96	E96	Myca_E96	sponge	2021	2021	2021-12-09	SE2	60°29'24.5''	59°40'07.3''	12-15	Mycale	Mycale sp.
+E98	E98	Myca_E98	sponge	2021	2021	2021-12-09	SE2	60°29'24.5''	59°40'07.3''	12-15	Mycale	Mycale sp.
+E100	E100	Myca_E100	sponge	2021	2021	2021-12-09	SE2	60°29'24.5''	59°40'07.3''	12-15	Mycale	Mycale sp.
+E101	E101	uDem_E101	sponge	2021	2021	2021-12-09	SE2	60°29'24.5''	59°40'07.3''	12-15	undetermined Demospongiae	undetermined Demospongiae
+E109	E109	Myca_E109	sponge	2021	2021	2021-12-12	SE2	60°29'24.5''	59°40'07.3''	12-15	Mycale	Mycale sp.
+E110	E110	Myca_E110	sponge	2021	2021	2021-12-12	SE2	60°29'24.5''	59°40'07.3''	12-15	Mycale	Mycale sp.
+E112	E112	uDem_E112	sponge	2021	2021	2021-12-12	SE2	60°29'24.5''	59°40'07.3''	12-15	undetermined Demospongiae	undetermined Demospongiae
+E115	E115	MyxB_E115	sponge	2021	2021	2021-12-12	SE2	60°29'24.5''	59°40'07.3''	12-15	Myxilla (Burtonanchora)	Myxilla (Burtonanchora) sp.
+E116	E116	Myca_E116	sponge	2021	2021	2021-12-16	SE2	60°29'24.5''	59°40'07.3''	12-15	Mycale	Mycale sp.
+E119	E119	Dant_E119	sponge	2021	2021	2021-12-16	SE2	60°29'24.5''	59°40'07.3''	12-15	Dendrilla	Dendrilla antarctica
+E122	E122	Myca_E122	sponge	2021	2021	2021-12-16	SE2	60°29'24.5''	59°40'07.3''	12-15	Mycale	Mycale sp.
+SW1-3	SW18.1	SW18.1	seawater	2018	2018	2018-12-06	Islote Vasquez	62°29'43,1''	59°41'03.6''	16	seawater	seawater
+SW1-20	SW18.1	SW18.1	seawater	2018	2018	2018-12-06	Islote Vasquez	62°29'43,1''	59°41'03.6''	16	seawater	seawater
+SW3-0.2	SW18.2	SW18.2	seawater	2018	2018	2018-12-11	Islote Vasquez	62°29'42,5''	59°41'01.5''	14	seawater	seawater
+SW3-3	SW18.2	SW18.2	seawater	2018	2018	2018-12-11	Islote Vasquez	62°29'42,5''	59°41'01.5''	14	seawater	seawater
+SW3-20	SW18.2	SW18.2	seawater	2018	2018	2018-12-11	Islote Vasquez	62°29'42,5''	59°41'01.5''	14	seawater	seawater
+SW6-0.2	SW19.1	SW19.1	seawater	2019	2019	2019-11-30	SE3	62°29'24.8''	59°40'08.4''	10	seawater	seawater
+SW6-3	SW19.1	SW19.1	seawater	2019	2019	2019-11-30	SE3	62°29'24.8''	59°40'08.4''	10	seawater	seawater
+SW7-0.2	SW19.2	SW19.2	seawater	2019	2019	2019-12-03	SE5	62°29'47,8''	59°43'20.5''	8	seawater	seawater
+SW7-3	SW19.2	SW19.2	seawater	2019	2019	2019-12-03	SE5	62°29'47,8''	59°43'20.5''	8	seawater	seawater
+SW7-20	SW19.2	SW19.2	seawater	2019	2019	2019-12-03	SE5	62°29'47,8''	59°43'20.5''	8	seawater	seawater
+SW8-0.2	SW19.3	SW19.3	seawater	2019	2019	2019-12-04	SE3	62°29'24.8''	59°40'08.4''	10	seawater	seawater
+SW8-3	SW19.3	SW19.3	seawater	2019	2019	2019-12-04	SE3	62°29'24.8''	59°40'08.4''	10	seawater	seawater
+SW8-20	SW19.3	SW19.3	seawater	2019	2019	2019-12-04	SE3	62°29'24.8''	59°40'08.4''	10	seawater	seawater
+SW13-0.2	SW20.1	SW20.1	seawater	2019	2020	2020-02-25	SE2	62°29'23.7''	59°40'05.5''	13	seawater	seawater
+SW13-3	SW20.1	SW20.1	seawater	2019	2020	2020-02-25	SE2	62°29'23.7''	59°40'05.5''	13	seawater	seawater
+SW13-20	SW20.1	SW20.1	seawater	2019	2020	2020-02-25	SE2	62°29'23.7''	59°40'05.5''	13	seawater	seawater
+SW14-0.2	SW20.2	SW20.2	seawater	2019	2020	2020-02-28	SE2	60°29'25.1''	59°40'06.8''	13	seawater	seawater
+SW14-3	SW20.2	SW20.2	seawater	2019	2020	2020-02-28	SE2	60°29'25.1''	59°40'06.8''	13	seawater	seawater
+SW16-0.2	SW20.3	SW20.3	seawater	2019	2020	2020-03-03	SE2	60°29'25.1''	59°40'06.8''	12	seawater	seawater
+SW16-3	SW20.3	SW20.3	seawater	2019	2020	2020-03-03	SE2	60°29'25.1''	59°40'06.8''	12	seawater	seawater
+SW16-20	SW20.3	SW20.3	seawater	2019	2020	2020-03-03	SE2	60°29'25.1''	59°40'06.8''	12	seawater	seawater
+SW21-0.2	SW21.1	SW21.1	seawater	2020	2021	2021-01-05	SE2	60°29'24.5''	59°40'07.3''	12	seawater	seawater
+SW21-3	SW21.1	SW21.1	seawater	2020	2021	2021-01-05	SE2	60°29'24.5''	59°40'07.3''	12	seawater	seawater
+SW22-0.2	SW21.2	SW21.2	seawater	2020	2021	2021-01-12	SE2	60°29'25.1''	59°40'06.8''	10	seawater	seawater
+SW22-3	SW21.2	SW21.2	seawater	2020	2021	2021-01-12	SE2	60°29'25.1''	59°40'06.8''	10	seawater	seawater
+SW23-0.2	SW21.3	SW21.3	seawater	2020	2021	2021-01-18	SE2	60°29'24.5''	59°40'07.3''	12	seawater	seawater
+SW23-3	SW21.3	SW21.3	seawater	2020	2021	2021-01-18	SE2	60°29'24.5''	59°40'07.3''	12	seawater	seawater
+SW23-20	SW21.3	SW21.3	seawater	2020	2021	2021-01-18	SE2	60°29'24.5''	59°40'07.3''	12	seawater	seawater
+SW24-0.2	SW21.4	SW21.4	seawater	2020	2021	2021-01-28	SE2	60°29'25.1''	59°40'06.8''	11	seawater	seawater
+SW24-3	SW21.4	SW21.4	seawater	2020	2021	2021-01-28	SE2	60°29'25.1''	59°40'06.8''	11	seawater	seawater
+SW24-20	SW21.4	SW21.4	seawater	2020	2021	2021-01-28	SE2	60°29'25.1''	59°40'06.8''	11	seawater	seawater
+SW26-3	SW21.5	SW21.5	seawater	2021	2021	2021-12-12	SE2	60°29'25.1''	59°40'06.8''	12-13	seawater	seawater
+SW26-20	SW21.5	SW21.5	seawater	2021	2021	2021-12-12	SE2	60°29'25.1''	59°40'06.8''	12-13	seawater	seawater
+SW27-20	SW21.6	SW21.6	seawater	2021	2021	2021-12-16	SE2	60°29'25.1''	59°40'06.8''	12-13	seawater	seawater
