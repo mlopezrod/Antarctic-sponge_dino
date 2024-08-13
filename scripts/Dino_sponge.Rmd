@@ -1,0 +1,1675 @@
+---
+title: "Stable dominance of parasitic dinoflagellates in Antarctic sponges"
+author: "Marileyxis Lopez"
+date: "2023-08-11"
+output:
+  rmdformats::readthedown:
+    highlight:
+
+---
+
+## `Load libraries
+```{r echo=FALSE, cache=FALSE, warning=FALSE, message=FALSE}
+library("phyloseq")
+library(tidytree)
+library(ape)
+library("microbiome")
+library("DECIPHER") 
+library("ShortRead")
+library("ggplot2")
+library("RColorBrewer") 
+library("ggpubr")
+library ("plyr")
+library("dplyr")
+library("Biostrings")
+library("tidyr")
+library("tibble")
+library("readxl")
+library("readr")
+library("stringr")
+library("gridExtra")
+library("patchwork") 
+library("cowplot") 
+library("ComplexUpset")
+library("vegan") 
+library("glue")
+library("ggrepel")
+library("devtools") 
+library("ggbiplot")
+options(stringsAsFactors = FALSE)
+library("reshape2")
+library("ggordiplots")
+library("ggsignif")
+library(RADami)
+library(seqinr)
+library("ranacapa")
+library(MicEco)
+library("data.table")
+library(ggthemes)
+library(kableExtra)
+library(ggvenn)
+library("pheatmap")
+library("ComplexHeatmap")
+library("eulerr")
+library(ggExtra)
+library("ggplotify")
+library("ggtree")
+library("treeio")
+library("shipunov")
+library(seqinr)
+library("MODclustsig")
+library(purrr)
+library("cluster")
+library(scales)
+library("mia")
+library("picante")
+library("DT")
+library("viridis")
+library("pals")
+library(ggnewscale)
+library("phylotools")
+
+
+```
+
+```{r set_colors}
+
+# Set colors
+sponge.colors <- read_excel("colors.xlsx", sheet = "sponge_V4colors")
+sponge.colors1 <-structure(sponge.colors$color_name, .Names=sponge.colors$Sponge_name)
+sponge.shape<-structure(sponge.colors$shape_name, .Names=sponge.colors$Sponge_name)
+
+div.colors <- read_excel("colors.xlsx", sheet = "Division")
+div.colors <- structure(div.colors$color_name,.Names=div.colors$division) 
+
+trophic.colors <- read_excel("colors.xlsx", sheet = "trophiceu")
+trophic.colors <- structure(trophic.colors$color_name,.Names=trophic.colors$trophic_group) 
+
+lifestyle.colors <- read_excel("colors.xlsx", sheet = "lifestyle")
+lifestyle.colors <- structure(lifestyle.colors$color_name,.Names=lifestyle.colors$lifestyle)
+
+class_colors <- read_excel("colors.xlsx", sheet = "classeukall")
+class_colors <- structure(class_colors$color_name,.Names=class_colors$class) 
+
+```
+
+
+###### Phyloseq object 
+```{r phyloseq object, include=FALSE, message=FALSE}
+otu.mat <- read.table("C:/Users/maril/OneDrive/Documentos/PEERJ/seqtable_nochim.ok.tsv", sep = "\t", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+tax.mat <- read.table("C:/Users/maril/OneDrive/Documentos/PEERJ/taxonomy.ok.tsv", sep = "\t", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+samples.df <- read.table("C:/Users/maril/OneDrive/Documentos/PEERJ/metadata_18S.txt", sep = "\t", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+tree <- readRDS("C:/Users/maril/OneDrive/Documentos/PEERJ/tree_18S.rds")
+
+
+otu.mat <- otu.mat %>% tibble::column_to_rownames("sequence") %>% as.matrix()
+tax.mat <- tax.mat %>% tibble::column_to_rownames("sequence") %>% as.matrix()
+samples.df <- samples.df %>% tibble::column_to_rownames("Sample")  
+
+
+OTU <- otu_table(otu.mat, taxa_are_rows = TRUE)
+TAX <- tax_table(tax.mat)
+samples <- sample_data(samples.df)
+ps <- phyloseq(OTU, TAX, samples, tree)
+
+#Remove samples
+ps <- prune_samples(sample_data(ps)$Year != "2018", ps)
+
+# fraction joining in water samples
+ps1 <- merge_samples(ps, "SampleID", fun = sum)
+
+# incorporating sequences into the phyloseq object
+sequences <- Biostrings::DNAStringSet(taxa_names(ps1))
+names(sequences) <- taxa_names(ps1)
+ps1 <- merge_phyloseq(ps1, sequences)
+
+# incorporate the metadata in the new phyloseq object
+metdat.18s <- sample_data(ps) %>%
+  as_tibble() %>%
+  distinct(SampleID, .keep_all = TRUE) %>%
+  arrange(SampleID) %>%
+  as.data.frame()
+rownames(metdat.18s) <- rownames(otu_table(ps1))
+sample_data(ps1) <- metdat.18s
+
+# filter taxas
+ps1 <- subset_taxa(ps1, !Genus %in% c("Monostroma", "Capsosiphon"))
+
+# remove singletons
+ps2 <- filter_taxa(ps1, function (x) {sum(x >0) > 1}, prune=TRUE)
+
+#Filter samples based on minimum read count and with only a single ASV
+ps2 <- prune_samples(sample_sums(ps2) > 100, ps2)
+ps2 <- subset_samples(ps2, !sample_names(ps2) %in% c("E98", "E122"))
+
+# Know if there are ASVs with zero value and prune taxa with zero counts
+if(any(taxa_sums(ps2) == 0)) {
+  ps2 <- filter_taxa(ps2, function(x) sum(x) > 0, prune = TRUE)
+}
+
+# naming ASVs
+taxa_names(ps2)<- sprintf("ASV%03d", seq(ntaxa(ps2)))
+
+# Extract the reference sequences and write them to a FASTA file.
+
+ps2 %>%
+  refseq() %>%
+  Biostrings::writeXStringSet("./filteredASV_sequence.fa", append=FALSE,
+                              compress=FALSE, compression_level=NA, format="fasta")
+
+
+
+# statistical summary (read distributions, community richness, and overall dataset characteristics)
+seqfinales <- as.data.frame(readcount(ps2))
+openxlsx::write.xlsx(seqfinales,"numsequences.xlsx", rowNames=TRUE)
+p.asv<- plot_richness(ps2, x = "sample", measures = "Observed" )
+ASVs<- data.frame("Samples"=p.asv$data$samples,"ASVs" = p.asv$data$value)
+openxlsx::write.xlsx(ASVs,"ASVsend.xlsx", rowNames=FALSE)
+summarize_phyloseq(ps2)
+
+# Reformat sampletype and summer' columns in the sample data of the phyloseq object as factors.
+ps2@sam_data$Sampletype<- factor(ps2@sam_data$Sampletype, levels = c("sponge","seawater"))
+ps2@sam_data$Summer<- factor(ps2@sam_data$Summer, levels = c("2019","2020","2021"))
+
+
+#Split ps2 into two separate objects: one excluding Dinoflagellata (ps.euk) and one including only Dinoflagellata (ps.dino).
+ps.euk<-subset_taxa(ps2, Division != "Dinoflagellata")
+ps.euk
+ps.dino<-subset_taxa(ps2, Division == "Dinoflagellata")
+ps.dino
+
+#Remove samples from the objects ps.euk and ps.dino that contain only a single ASV.
+ps.euk <- subset_samples(ps.euk, !sample_names(ps.euk) %in% c("E115", "E30"))
+ps.dino <- subset_samples(ps.dino, !sample_names(ps.dino) %in% "E110")
+
+
+```
+
+
+###### Alpha diversity
+```{r,message=FALSE}
+#Define a function to perform rarefaction, richness estimation, and phylogenetic diversity calculation
+
+
+alpha_diversity <- function(ps, root_tree = TRUE) {
+  set.seed(TRUE)
+  ps.raref <- rarefy_even_depth(ps, sample.size = min(sample_sums(ps)),
+                                rngseed = TRUE, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+  index.raref <- estimate_richness(ps.raref, split = TRUE, measures = c("Observed", "Shannon"))
+  asv.raref <- as.data.frame(otu_table(ps.raref))
+  tree.raref <- phy_tree(ps.raref)
+  pd.raref <- pd(asv.raref, tree.raref, include.root = root_tree)
+  meta.raref <- as.data.frame(sample_data(ps.raref))
+  meta.raref$Phylogenetic_Diversity <- pd.raref$PD
+  phylogenetic.diversity.raref <- meta.raref[, c("Sampletype", "Phylogenetic_Diversity")]
+  indexes.alpha.raref <- cbind(index.raref, phylogenetic.diversity.raref)
+  return(list(ps.raref = ps.raref, indexes.alpha.raref = indexes.alpha.raref))
+}
+
+# Non-dino community (euk)
+ps.euk@phy_tree # Rooted tree
+euk.results <- alpha_diversity(ps.euk, root_tree = TRUE)
+ps.euk.raref <- euk.results$ps.raref
+indexes.alpha.euk.raref <- euk.results$indexes.alpha.raref
+datatable(indexes.alpha.euk.raref)
+
+
+
+
+# Dino community 
+ps.dino@phy_tree #unrooted tree
+dino.results <- alpha_diversity(ps.dino, root_tree = F)
+ps.dino.raref <- dino.results$ps.raref
+indexes.alpha.dino.raref <- dino.results$indexes.alpha.raref
+datatable(indexes.alpha.dino.raref)
+
+```
+
+
+###### Alpha diversity plot
+```{r}
+
+
+# Data frames for sample information and labels
+richness.euk <- data.frame(Sampletype = c("sponge", "seawater"), Sample_number = c(24, 12), y_pos = c(5.5, 6.2))
+richness.euk$Label <- paste("N=", richness.euk$Sample_number, sep="")
+
+shannon.euk <- data.frame(Sampletype = c("sponge", "seawater"), Sample_number = c(24, 12), y_pos = c(1.6, 1.8))
+shannon.euk$Label <- paste("N=", shannon.euk$Sample_number, sep="")
+
+pd.euk <- data.frame(Sampletype = c("sponge", "seawater"), Sample_number = c(24, 12), y_pos = c(2.6, 2.5))
+pd.euk$Label <- paste("N=", pd.euk$Sample_number, sep="")
+
+richness.dino <- data.frame(Sampletype = c("sponge", "seawater"), Sample_number = c(25, 12), y_pos = c(10, 25))
+richness.dino$Label <- paste("N=", richness.dino$Sample_number, sep="")
+
+shannon.dino <- data.frame(Sampletype = c("sponge", "seawater"), Sample_number = c(25, 12), y_pos = c(1.5, 2.9))
+shannon.dino$Label <- paste("N=", shannon.dino$Sample_number, sep="")
+
+pd.dino <- data.frame(Sampletype = c("sponge", "seawater"), Sample_number = c(25, 12), y_pos = c(1, 1.5))
+pd.dino$Label <- paste("N=", pd.dino$Sample_number, sep="")
+
+# Function to create richness plots
+create_richness_plot <- function(ps, measure, y_label, title, c_data, y_limits) {
+  plot <- plot_richness(ps, x = "Sampletype", measures = measure, scales = "free_y") +
+    geom_boxplot(aes(fill = Sampletype), outlier.shape = NA, alpha = 0.3, position = "identity") +
+    geom_jitter(aes(color = Sampletype), position = position_jitter(width = 0.2), size = 1.5, alpha = 0.6) +
+    scale_fill_manual(values = c("orange", "steelblue"), guide = guide_legend(title = NULL)) +
+    scale_color_manual(values = c("orange", "steelblue"), guide = "none") +
+    labs(x = NULL, y = y_label, title = title) +
+    stat_compare_means(paired = FALSE, label = "p.signif", label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) +
+    geom_text(data = c_data, aes(x = Sampletype, y = y_pos, label = Label), vjust = -0.5, size = 2.5) +
+    theme_classic() +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(size = 10, hjust = 0.5),
+      strip.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.text.x = element_blank(),
+      axis.title.y = element_text(size = 15, face = "bold", margin = margin(l = 10, r = 10))
+    ) +
+    ylim(y_limits)
+  plot$layers <- plot$layers[-1]
+  return(plot)
+}
+
+# Create plots for eukaryotic community
+euk.richness <- create_richness_plot(ps.euk.raref, "Observed", "Non-dino community", "Observed richness", richness.euk, c(0, 7))
+euk.shannon <- create_richness_plot(ps.euk.raref, "Shannon", NULL, "Shannon", shannon.euk, c(0, 2))
+
+# Create phylogenetic diversity plot for eukaryotic community
+
+pd.plot.euk <- ggboxplot(indexes.alpha.euk.raref, x = "Sampletype", y = "Phylogenetic_Diversity", legend = " ") +
+  geom_boxplot(aes(fill = Sampletype), outlier.shape = NA, alpha = 0.3, position = "identity") +
+  geom_jitter(aes(color = Sampletype), position = position_jitter(width = 0.2), size = 1.5, alpha = 0.6) +
+  scale_fill_manual(values = c("orange", "steelblue"), guide = guide_legend(title = NULL)) +
+  scale_color_manual(values = c("orange", "steelblue"), guide="none") +
+  labs(x = NULL, y = NULL, title = "Phylogenetic Diversity") +
+  stat_compare_means(paired = FALSE, label = "p.signif", label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) +
+  geom_text(data = pd.euk, aes(x = Sampletype, y = y_pos, label = Label), vjust = -0.5, size = 2.5) +
+  theme_classic() +
+  theme(legend.position = "right",legend.text = element_text(size = 12), legend.key.size = unit(2, "lines"),
+    plot.title = element_text(size = 10, hjust = 0.5),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.title.y = element_text(margin = margin(r = 10))
+  ) +
+  ylim(0, 3)
+pd.plot.euk$layers <- pd.plot.euk$layers[-1]
+
+# Create plots for dinoflagellate community
+dino.richness <- create_richness_plot(ps.dino.raref, "Observed", "Dinoflagellates", NULL, richness.dino, c(0, NA))
+dino.shannon <- create_richness_plot(ps.dino.raref, "Shannon", NULL, NULL, shannon.dino, c(0, NA))
+
+# Create phylogenetic diversity plot for dinoflagellate community
+pd.plot.dino <- ggboxplot(indexes.alpha.dino.raref, x = "Sampletype", y = "Phylogenetic_Diversity", legend = " ") +
+  geom_boxplot(aes(fill = Sampletype), outlier.shape = NA, alpha = 0.3, position = "identity") +
+  geom_jitter(aes(color = Sampletype), position = position_jitter(width = 0.2), size = 1.5, alpha = 0.6) +
+  scale_fill_manual(values = c("orange", "steelblue")) +
+  scale_color_manual(values = c("orange", "steelblue")) +
+  labs(x = NULL, y = NULL, title = "Phylogenetic Diversity") +
+  stat_compare_means(paired = FALSE, label = "p.signif", label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) +
+  geom_text(data = pd.dino, aes(x = Sampletype, y = y_pos, label = Label), vjust = -0.5, size = 2.5) +
+  theme_classic() +
+  theme(legend.position = "none",
+    plot.title = element_text(size = 10, hjust = 0.5),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.title.y = element_text(margin = margin(r = 10))
+  ) +
+  scale_y_continuous(breaks = c(0, 1, 2, 3), labels = c("0", "1", "2", "3")) +
+  coord_cartesian(ylim = c(0, NA))
+pd.plot.dino$layers <- pd.plot.dino$layers[-1]
+
+# Create and save alpha diversity plots for eukaryotic and dinoflagellate communities
+alpha.plot<- (euk.richness| euk.shannon | pd.plot.euk) /
+             (dino.richness| dino.shannon | pd.plot.dino) +
+                 plot_layout(guides = "collect") 
+pdf("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/Fig1.alphadivok.pdf", width = 10, height = 8)
+print(alpha.plot)
+dev.off()
+
+png("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/Fig1.alphadivok.png", units = "in", width = 10, height = 8, res = 300)
+print(alpha.plot)
+dev.off()
+
+```
+
+
+#### Beta diversity
+```{r}
+#CLR transformation, NMDS ordination using Euclidean distance, and NMDS plot for non- dino community 
+ps.euk.rel <- transform_sample_counts(ps.euk, function(x) x/sum(x))
+ps.euk.rel <- filter_taxa(ps.euk.rel, function(x) sum(x) > .001, TRUE)
+ps.euk.rel.clr<-microbiome::transform(ps.euk.rel, 'clr', shift = 1)
+set.seed(123)
+euc.euk <- ordinate(ps.euk.rel.clr, method = "NMDS", distance = "euclidean", formula = NULL)
+
+euc.plot.euk <- plot_ordination(ps.euk.rel.clr, euc.euk, type = "samples", axes = 1:2,
+                                 color = "Samples_names",  shape = "Samples_names", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + 
+  scale_color_manual(name= "Samples",values = sponge.colors1,
+                     limits = rownames(as.matrix(sponge.colors1))) + scale_shape_manual(name= "Samples",values = sponge.shape, limits = rownames(as.matrix(sponge.shape))) + theme_bw() + labs(title = "Non-dino community") +
+  annotation_custom(textGrob(label = "stress = 0.126", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 18))) +
+  theme(legend.position = "right",
+        plot.title = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=12, face = "italic"),
+        legend.title = element_text(size=15))
+
+euc.plot.euk 
+
+
+
+# Hellinger transformation, NMDS ordination using Bray- Curtis distance, and NMDS plot for non-dino community 
+ps.euk.rel.he <- transform_sample_counts(ps.euk.rel, function(x) sqrt(x / sum(x,na.rm = T)))
+ps.euk.rel.he <- subset_samples(ps.euk.rel.he, !sample_names(ps.euk.rel.he) %in% "E30.3") # remove outlier
+set.seed(123)
+bray.euk <- ordinate(ps.euk.rel.he, method = "NMDS", distance = "bray", formula = NULL)
+bray.plot.euk <- plot_ordination(ps.euk.rel.he, bray.euk, type = "samples", axes = 1:2,
+                                 color = "Samples_names",  shape = "Samples_names", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + 
+  scale_color_manual(name= "Samples",values = sponge.colors1,
+                     limits = rownames(as.matrix(sponge.colors1))) + scale_shape_manual(name= "Samples",values = sponge.shape, limits = rownames(as.matrix(sponge.shape))) + theme_bw() + labs(title = "Non-dino community") +
+  annotation_custom(textGrob(label = "stress = 0.206", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 18))) +
+  theme(legend.position = "right",
+        plot.title = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=12, face = "italic"),
+        legend.title = element_text(size=15))
+
+bray.plot.euk
+
+
+
+#CLR transformation, NMDS ordination using Euclidean distance, and NMDS plot for dinoflagellate community 
+ps.dino.rel <- transform_sample_counts(ps.dino, function(x) x/sum(x))
+ps.dino.rel <- filter_taxa(ps.dino.rel, function(x) sum(x) > .001, TRUE)
+ps.dino.rel.clr<-microbiome::transform(ps.dino.rel, 'clr', shift = 1)
+set.seed(123)
+euc.dino <- ordinate(ps.dino.rel.clr, method = "NMDS", distance = "euclidean", formula = NULL)
+
+euc.plot.dino <- plot_ordination(ps.dino.rel.clr, euc.dino, type = "samples", axes = 1:2,
+                                 color = "Samples_names", shape = "Samples_names", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + #stat_ellipse(geom = "polygon", type="t",level = 0.90, alpha=0.4, aes(fill=temporal))+
+  scale_color_manual(name= "Samples",values = sponge.colors1,
+                     limits = rownames(as.matrix(sponge.colors1))) + scale_shape_manual(name= "Samples",values = sponge.shape, limits = rownames(as.matrix(sponge.shape))) + theme_bw() + labs(title = "Dinoflagellates")+
+  annotation_custom(textGrob(label = "stress = 0.112", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 18))) +
+  theme(legend.position = " ", 
+        plot.title = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=12,face = "italic"),
+        legend.title = element_text(size=15))
+
+euc.plot.dino
+
+
+# Hellinger transformation, NMDS ordination using Bray- Curtis distance, and NMDS plot for non-dino community 
+ps.dino.rel.he <- transform_sample_counts(ps.dino.rel, function(x) sqrt(x / sum(x,na.rm = T)))
+set.seed(123)
+bray.dino <- ordinate(ps.dino.rel.he, method = "NMDS", distance = "bray", formula = NULL)
+bray.plot.dino <- plot_ordination(ps.dino.rel.he, bray.dino, type = "samples", axes = 1:2,
+                                 color = "Samples_names",  shape = "Samples_names", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + 
+  scale_color_manual(name= "Samples",values = sponge.colors1,
+                     limits = rownames(as.matrix(sponge.colors1))) + scale_shape_manual(name= "Samples",values = sponge.shape, limits = rownames(as.matrix(sponge.shape))) + theme_bw() + labs(title = "Non-dino community") +
+  annotation_custom(textGrob(label = "stress = 0.095", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 18))) +
+  theme(legend.position = "right",
+        plot.title = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=12, face = "italic"),
+        legend.title = element_text(size=15))
+
+bray.plot.dino
+
+
+
+
+# Combine NMDS plots for non-dino and dinoflagellate communities and save 
+FigS2<- (euc.plot.euk +euc.plot.dino) + plot_layout(guides = "collect") 
+
+png("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/FigS2.png", units = "in", width =18, height =7 , res = 300)
+FigS2
+dev.off()
+
+
+pdf("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/FigS2.pdf", width = 18, height = 7)
+FigS2
+dev.off() 
+
+
+FigS2.bray<- (bray.plot.euk +bray.plot.dino) + plot_layout(guides = "collect") 
+
+png("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/FigS2.bray.png", units = "in", width =18, height =7 , res = 300)
+FigS2.bray
+dev.off()
+
+
+pdf("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/FigS2.bray.pdf", width = 18, height = 7)
+FigS2.bray
+dev.off() 
+
+
+
+
+
+
+
+##anosim by sampletype
+#Non-dino
+distance.euk<-phyloseq::distance(ps.euk.rel.clr,method="euclidean",type = "samples")
+metadata.euk<- as(sample_data(ps.euk.rel.clr), "data.frame")
+
+distance.euk.bray<-phyloseq::distance(ps.euk.rel.he,method="bray",type = "samples")
+metadata.euk.bray<- as(sample_data(ps.euk.rel.he), "data.frame")
+
+set.seed(1246)
+anosim.sampletype.euk <-anosim(distance.euk, metadata.euk$Sampletype, permutations = 999, distance = "euclidean",
+                      strata = NULL,parallel = getOption("mc.cores"))
+anosim.sampletype.euk.bray <-anosim(distance.euk.bray, metadata.euk.bray$Sampletype, permutations = 999, distance = "bray",strata = NULL,parallel = getOption("mc.cores"))
+writeLines(capture.output(print(anosim.sampletype.euk)), con = "ANOSIMeuk.euc.txt")
+writeLines(capture.output(print(anosim.sampletype.euk.bray)), con = "ANOSIMeuk.bray.txt")
+
+
+
+
+
+#Dino
+distance.dino<-phyloseq::distance(ps.dino.rel.clr,method="euclidean",type = "samples")
+metadata.dino<- as(sample_data(ps.dino.rel.clr), "data.frame")
+
+distance.dino.bray<-phyloseq::distance(ps.dino.rel.he,method="bray",type = "samples")
+metadata.dino.bray<- as(sample_data(ps.dino.rel.he), "data.frame")
+
+set.seed(1246)
+anosim.sampletype.dino <-anosim(distance.dino, metadata.dino$Sampletype, permutations = 999, distance = "euclidean",
+                      strata = NULL,parallel = getOption("mc.cores"))
+anosim.sampletype.dino.bray <-anosim(distance.dino.bray, metadata.dino.bray$Sampletype, permutations = 999, distance = "bray",strata = NULL,parallel = getOption("mc.cores"))
+chars.dino <- capture.output(print(anosim.sampletype.dino))
+writeLines(capture.output(print(anosim.sampletype.dino)), con = "ANOSIMdino.euc.txt")
+writeLines(capture.output(print(anosim.sampletype.dino.bray)), con = "ANOSIMdino.bray.txt")
+
+```
+
+
+
+#### Taxonomy
+
+```{r}
+## normalization by median
+total <- median(sample_sums(ps2))
+  str_c("Median number of reads: ",total)
+  standf <- function(x, t=total) round(t * (x / sum(x)))
+  ps.eukall <- transform_sample_counts(ps2, standf)
+  ps.eukall
+  
+  
+total.euk <- median(sample_sums(ps.euk))
+  str_c("Median number of reads: ",total.euk)
+  standf.euk <- function(x, t=total.euk) round(t * (x / sum(x)))
+  ps.euk.nor<- transform_sample_counts(ps.euk, standf.euk)
+  ps.euk.nor
+  
+
+total.dino <- median(sample_sums(ps.dino))
+  str_c("Median number of reads: ",total.dino)
+  standf.dino <- function(x, t=total.dino) round(t * (x / sum(x)))
+  ps.dino.nor<- transform_sample_counts(ps.dino, standf.dino)
+  ps.dino.nor
+```
+
+## filter abundance 
+```{r}
+f1.c <- filterfun_sample(topf(0.90))#creates a function to keep 90% most sequences
+whall.up.eukall <- genefilter_sample(ps.eukall, f1.c, A = 1)
+ps.abund.eukall <- prune_taxa(whall.up.eukall, ps.eukall)
+uni.Div.eukall<- get_taxa_unique(ps.abund.eukall, "Division")
+uni.Div.eukall
+
+
+whall.up.euk <- genefilter_sample(ps.euk.nor, f1.c, A=1) 
+ps.abund.euk <- prune_taxa(whall.up.euk, ps.euk.nor)
+uni.Div.euk<- get_taxa_unique(ps.abund.euk, "Division")
+uni.Div.euk
+uni.Class.euk<- get_taxa_unique(ps.abund.euk, "Class")
+uni.Class.euk
+
+
+ps.dino.g <- subset_taxa(ps.dino.nor, Genus!= "NA")
+ps.dino.g <- filter_taxa(ps.dino.g, function (x) {sum(x) > 0}, prune=TRUE)
+whall.up.Dino <- genefilter_sample(ps.dino.g, f1.c, A=1) 
+ps.abund.dino <- prune_taxa(whall.up.Dino, ps.dino.g)
+uni.Genus.dino<- get_taxa_unique(ps.abund.dino, "Genus")
+uni.Genus.dino
+```
+
+
+#### plot Division
+
+```{r}
+
+TG.Division.eukall <- tax_glom(ps.abund.eukall, "Division")
+melt.TG.Division.eukall <- psmelt(TG.Division.eukall)
+
+melt.TG.Division.eukall <- melt.TG.Division.eukall  %>%
+  arrange(Supergroup) %>%
+  mutate(Division = factor(Division, unique(Division)))
+
+list1 <- read.delim("list1.new.txt", header = F)
+
+
+bar.Division.eukall.samples <- ggplot(melt.TG.Division.eukall, aes(x =label , y = Abundance, fill = Division)) +
+    geom_bar(stat = "identity", position = "fill") +
+    theme_classic() + scale_x_discrete(limits = list1$V1)+
+    xlab("Samples") + 
+    ylab("Relative abundance") + ggtitle("A.Microbial eukaryote community") +
+     theme(plot.title = element_text(hjust = 0),legend.position = "right", strip.background = element_rect(fill = "white", color = "white"), strip.text = element_text(size = 12), 
+            axis.text.x = element_text(angle = 45, hjust=1)) +
+     scale_fill_manual(values = div.colors)  +
+     scale_y_continuous(labels = function(x) paste0(x*100, "%")) # Multiply by 100 & add %  
+
+bar.Division.eukall.samples				
+				
+
+
+
+TG.Division.euk <- tax_glom(ps.abund.euk, "Division")
+melt.TG.Division.euk <- psmelt(TG.Division.euk)
+melt.TG.Division.euk <- melt.TG.Division.euk %>%
+  arrange(Supergroup) %>%
+  mutate(Division = factor(Division, unique(Division)))
+
+list2 <- read.delim("list2.new.txt", header = F)
+bar.Division.samples.euk <- ggplot(melt.TG.Division.euk, aes(x = label, y = Abundance, fill = Division)) +
+    geom_bar(stat = "identity", position = "fill") +
+    theme_classic() + scale_x_discrete(limits = list2$V1)+
+    xlab("Samples") + 
+    ylab("Relative abundance") +  ggtitle("B.Microbial eukaryote community without dinoflagellates") +
+     theme(plot.title = element_text(hjust = 0), legend.position = " ", strip.background = element_rect(fill = "white", color = "white"), strip.text = element_text(size = 12),axis.text.x = element_text(angle = 45,hjust = 1))  +
+     scale_fill_manual(values = div.colors, limits = names(div.colors)) + theme() +
+     scale_y_continuous(labels = function(x) paste0(x*100, "%")) # Multiply by 100 & add %  
+
+bar.Division.samples.euk
+```
+
+
+```{r}
+
+TG.genus.Dino <- tax_glom(ps.abund.dino, "Genus")
+melt.TG.genus.Dino <- psmelt(TG.genus.Dino)
+
+listdino <- read.delim("listdino.new.txt", header = FALSE)
+
+melt.TG.genus.Dino <- melt.TG.genus.Dino %>%
+  arrange(Division, Class) %>%
+  mutate(Genus = factor(Genus, unique(Genus)))
+
+cols.dino <- c("#393B79", "#5254A3", "#6B6ECF", "#9C9EDE", "#637939", "#8CA252", "#B5CF6B", "#CEDB9C", "#8C6D31", "#BD9E39")
+cols.dino <- rep_len(cols.dino, length.out = length(levels(melt.TG.genus.Dino$Genus)))
+names(cols.dino) <- levels(melt.TG.genus.Dino$Genus)
+
+groups.dino <- melt.TG.genus.Dino %>%
+  distinct(Class, Genus) %>%
+  mutate(order = as.numeric(forcats::fct_inorder(Class))) %>%
+  split(.$Class)
+
+
+bar.Dinos <- ggplot(melt.TG.genus.Dino) +
+ lapply(groups.dino, function(x) {
+    list(
+      geom_bar(aes(x= label, y= Abundance, fill = Genus), position = "fill", stat = "identity"),
+      scale_fill_manual(name = unique(x$Class),
+                        values = cols.dino, limits = x$Genus,na.value = "transparent",
+                        guide = guide_legend(order = unique(x$order))),
+      new_scale_fill()  
+    )
+  }) +
+  theme_classic() +  scale_x_discrete(limits = listdino$V1)+  ggtitle("C.Dinoflagellates")+
+    xlab("Samples") + 
+    ylab("Relative abundance") +
+    theme(plot.title = element_text(hjust = 0), legend.position ="right",legend.spacing.y = unit(0.1, "cm"), strip.background = element_rect(fill = "white", color = "white"), strip.text = element_text(size = 12), axis.text.x = element_text(angle = 45, hjust = 1))  +
+    scale_y_continuous(labels = function(x) paste0(x*100, "%")) # Multiply by 100 & add %  
+
+bar.Dinos
+
+
+```
+
+
+
+```{r}
+
+legend1 <- get_legend(bar.Division.eukall.samples + theme(legend.box.margin = margin(0, 0, 0, 12)))
+legend3 <- get_legend(bar.Dinos + theme(legend.box.margin = margin(0, 0, 0, 12)))
+
+taxonomy <- plot_grid(
+  bar.Division.eukall.samples + theme(legend.position = "none"), 
+  bar.Division.samples.euk + theme(legend.position = "none"), 
+  bar.Dinos + theme(legend.position = "none"), 
+  align = "vh", 
+  ncol = 1
+)
+  
+
+legends.comb <- plot_grid(legend1, legend3, align = "v", ncol = 1, rel_heights = c(0.6, 0.4))
+
+Fig2 <- plot_grid(
+  taxonomy, 
+  legends.comb, 
+  rel_widths = c(2,0.6)
+)
+
+Fig2 <- ggdraw(Fig2) + 
+  theme(plot.margin = margin(0.5, 0.5, 0.5, 0.5, "cm")) 
+
+png("./IMAGES/Fig2.Taxonomy.png",units = "in",width = 11, height = 11, res=300)
+Fig2
+dev.off()
+
+pdf("./IMAGES/Fig2.Taxonomy.pdf",width = 13, height = 11)
+Fig2
+dev.off()
+
+```
+
+
+## bubbleplot class- euk
+
+```{r, euk-class}
+TG.class.euk <- tax_glom(ps.abund.euk, "Class")
+melt.TG.class.euk <- psmelt(TG.class.euk)
+melt.TG.class.euk <- melt.TG.class.euk %>%
+  arrange(Division) %>%
+  mutate(Class = factor(Class, unique(Class)))
+
+melt.TG.class.euk.bubble <- melt.TG.class.euk %>%
+  group_by(Sample) %>%
+  mutate(
+    TotalAbundance = sum(Abundance), 
+    RelativeAbundance = (Abundance / TotalAbundance) * 100
+  ) %>%
+  ungroup()
+
+melt.TG.class.euk.bubble$Class <- as.character(melt.TG.class.euk.bubble$Class)
+melt.TG.class.euk.bubble$Class[melt.TG.class.euk.bubble$RelativeAbundance < 5] <- "<5% Abundance"
+
+count.lineage <- length(unique(melt.TG.class.euk.bubble$Class))
+
+melt.TG.class.euk.bubble <- melt.TG.class.euk.bubble %>%
+  mutate(Division = if_else(Class == "<5% Abundance", "Others", Division))
+melt.TG.class.euk.bubble$Division <- factor(melt.TG.class.euk.bubble$Division,
+                                            levels = c(setdiff(unique(melt.TG.class.euk.bubble$Division), "Others"), "Others"))
+
+
+melt.TG.class.euk.bubble <- melt.TG.class.euk.bubble %>%
+  filter(RelativeAbundance > 1)
+
+
+bar.Class.samples.euk.bubble <- ggplot(melt.TG.class.euk.bubble, aes(x = label, y = Class, size = RelativeAbundance, color = Division)) +
+  geom_point(alpha = 0.7) + 
+  scale_x_discrete(limits = list2$V1) +
+  scale_size_continuous(name = "Relative abundance", range = c(1, 10), breaks = c(1, 25, 75, 100), limits = c(1, NA)) + 
+  scale_color_manual(values = c(
+    "Apicomplexa" = "#fcd55c", "Ciliophora" = "#a07d31", "Haptophyta" = "#5E2C4F", 
+    "Cryptophyta" = "#853470", "Picozoa" = "#d068b6", "Telonemia" = "#ad4292", 
+    "Fungi" = "#748639", "Mesomycetozoa" = "#a4c13b", "Choanoflagellida" = "#8F9E60", 
+    "Cercozoa" = "#208c6a", "Ochrophyta" = "#30506b", "Pseudofungi" = "#89bff2", 
+    "Sagenista" = "#376998", "Chlorophyta" = "#e8845f", "Others" = "#808080"
+  )) +
+  labs(color = "Division", x = "Samples", y = "Class") +
+  theme_bw() +
+  theme(
+    legend.title = element_text(size = 15), 
+    legend.text = element_text(size = 12),
+    axis.title.x = element_text(size = 12), 
+    axis.title.y = element_text(size = 12), 
+    axis.text.y = element_text(size = 10), 
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10)
+  ) + 
+  guides(color = guide_legend(override.aes = list(size = 5)))
+
+bar.Class.samples.euk.bubble
+
+png("./IMAGES/FigS1.png", units = "in", width = 12, height = 10, res = 300)
+bar.Class.samples.euk.bubble
+dev.off()
+
+```
+
+## ## Create intersection table for UpSet graphics-euk
+
+```{r}
+
+# create upset funtion
+upset_df_maker_function <- function(df_physeq) {
+
+# get binary values
+ps.merge_by_variable <- merge_samples(df_physeq, "Samples_names", fun = sum)
+upset_obj_otu_table <- as.data.frame(t(otu_table(ps.merge_by_variable)))
+upset_obj_binary <- sapply(upset_obj_otu_table, function(x) ifelse(x > 0, 1, 0),
+                          USE.NAMES = T)
+rownames(upset_obj_binary) <- rownames(upset_obj_otu_table)
+upset_obj_binary <- as.data.frame(upset_obj_binary)
+
+# extract tax_table
+upset_tax_table = as(tax_table(df_physeq), "matrix")
+if(taxa_are_rows(df_physeq)){
+  upset_tax_table <- t(upset_tax_table)
+  }
+upset_tax_table_df = as.data.frame(upset_tax_table)
+
+# add col names
+upset_obj_binary_colname <- upset_obj_binary %>% rownames_to_column("OTU")
+upset_tax_table_df_colname <- upset_tax_table_df %>% rownames_to_column("OTU")
+upset_obj_otu_table_colname <- upset_obj_otu_table %>% rownames_to_column("OTU") #add abundance
+
+# merge files
+upset_obj_binary <- merge(upset_obj_binary_colname, upset_tax_table_df_colname, by.x = "OTU", by.y = "OTU")
+upset_obj_binary = as.data.frame(upset_obj_binary)
+upset_obj_binary = na.omit(upset_obj_binary)
+
+upset_MERGED <- merge(upset_obj_binary, upset_obj_otu_table_colname, by.x = "OTU", by.y = "OTU", suffixes = c("", "_abund"))
+
+
+
+return(upset_MERGED)
+
+}
+```
+
+###Trophic status and lifestyle
+
+```{r}
+viewTax.euk <- as.data.frame(ps.abund.euk@tax_table)
+euk.genus <- subset_taxa(ps.abund.euk, Genus!= "NA")
+uni.genus.euk<- get_taxa_unique(euk.genus, "Genus")
+uni.genus.euk
+
+
+TG.genus.euk <- tax_glom(euk.genus, "Genus")
+melt.TG.genus.euk <- psmelt(TG.genus.euk)
+
+
+melt.TG.genus.euk$trophic <- data.frame(melt.TG.genus.euk) %>%
+    mutate(trophic = case_when( 
+		 Genus == "Phaeocystis" ~ "phytoplankton",
+		 Genus == "Geminigera" ~ "mixoplankton", 
+		 Genus == "Porosira" ~ "phytoplankton",
+		 Genus == "Stephanoecidae_Group_D_X" ~ "protozooplankton",
+		 Genus == "Strombidium_M" ~ "mixoplankton",
+		 Genus == "Pyramimonas" ~ "mixoplankton",
+		 Genus == "Strombidiidae_M_X" ~ "mixoplankton",
+		 Genus == "Picozoa_XXXX" ~ "protozooplankton",
+		 Genus == "Thalassiosira" ~ "phytoplankton",
+		 Genus == "Fungi_XXXX" ~ "protozooplankton",
+		 Genus == "Chrysochromulina" ~ "phytoplankton", 
+		 Genus == "Cryothecomonas" ~ "protozooplankton",
+		 Genus == "Chaetoceros" ~ "phytoplankton", 
+		 Genus == "Aspergillus" ~ "protozooplankton", 
+		 Genus == "Novel-clade-2_X" ~ "protozooplankton",
+		 Genus == "Leegaardiella" ~ "protozooplankton",
+		 Genus == "Telonemia-Group-1_X" ~ "protozooplankton",
+		 Genus == "Corethron" ~ "phytoplankton", 
+		 Genus == "Micromonas" ~ "phytoplankton",
+		 Genus == "Fragilariopsis" ~ "phytoplankton",
+		 Genus == "Protaspa-lineage_X" ~ "protozooplankton",
+		 Genus == "Pelagostrobilidium" ~ "protozooplankton",
+		 Genus == "Rhytidocystis" ~ "protozooplankton",
+		 Genus == "Bathycoccus" ~ "phytoplankton", 
+		 Genus == "Pelagomonadales_clade_B1" ~ "phytoplankton",
+		 Genus == "Poterioochromonas" ~ "phytoplankton",
+		 Genus == "MAST-8A_XX" ~ "protozooplankton",
+		 Genus == "Paralecudina"  ~ "protozooplankton",
+		 Genus == "Cladosporium" ~ "protozooplankton", 
+		 Genus == "Triparma"~ "phytoplankton",
+		 Genus == "Ephelota" ~ "protozooplankton",
+		 Genus == "Pseudoperkinsus" ~ "protozooplankton",
+		 Genus == "Gregarinomorphea_X_GRE3_XX" ~ "protozooplankton",
+		 Genus == "Sphaeroforma"~ "protozooplankton",
+		 Genus == "Phagomyxa"~ "protozooplankton",
+		 Genus == "Haplosporidium" ~ "protozooplankton",
+		 Genus == "Mastodia" ~ "protozooplankton",
+		 Genus == "Dolichomastigaceae-B" ~ "phytoplankton",
+		 Genus == "Talaromyces" ~ "protozooplankton",
+		 Genus == "LC104-lineage_X" ~ "protozooplankton",
+	)) %>% pull(trophic)
+
+
+
+bar.genus.trophic.euk <- ggplot(melt.TG.genus.euk, aes(x = label, y = Abundance, fill = trophic)) +
+    geom_bar(stat = "identity", position = "fill") +
+    theme_classic() + scale_x_discrete(limits = list2$V1) +
+    xlab("Samples") + 
+    ylab("Relative abundance") + ggtitle("Non-dino community") + labs(fill= "Trophic modes") +
+    theme(plot.title = element_text(size=16, hjust = 0.5), legend.position = "right",legend.title= element_text(size= 12), legend.text =  element_text(size=10), axis.title.y = element_text(size=12), axis.text.x = element_blank(), axis.title.x = element_blank()) +  scale_fill_manual(values =trophic.colors, limits = names(trophic.colors)) + scale_y_continuous(labels = function(x) paste0(x*100, "%"))
+           
+bar.genus.trophic.euk           
+           
+```
+
+
+### lifestyle
+```{r}
+
+melt.TG.genus.euk$parasites <- data.frame(melt.TG.genus.euk) %>%
+    mutate(parasites = case_when( 
+		 Genus == "Phaeocystis" ~ "non-parasitic",
+		 Genus == "Geminigera" ~ "non-parasitic",
+		 Genus == "Porosira" ~ "non-parasitic",
+		 Genus == "Stephanoecidae_Group_D_X" ~ "non-parasitic",
+		 Genus == "Strombidium_M" ~ "non-parasitic",
+		 Genus == "Pyramimonas" ~ "non-parasitic",
+		 Genus == "Strombidiidae_M_X" ~ "non-parasitic",
+		 Genus == "Picozoa_XXXX" ~ "non-parasitic",
+		 Genus == "Thalassiosira" ~ "non-parasitic",
+		 Genus == "Fungi_XXXX" ~ "non-parasitic",
+		 Genus == "Chrysochromulina" ~ "non-parasitic",
+		 Genus == "Cryothecomonas" ~ "parasitic",
+		 Genus == "Chaetoceros" ~ "non-parasitic",
+		 Genus == "Aspergillus" ~ "non-parasitic",
+		 Genus == "Novel-clade-2_X" ~ "non-parasitic",
+		 Genus == "Leegaardiella" ~ "non-parasitic",
+		 Genus == "Telonemia-Group-1_X" ~ "non-parasitic",
+		 Genus == "Corethron" ~ "non-parasitic",
+		 Genus == "Micromonas" ~ "non-parasitic",
+		 Genus == "Fragilariopsis" ~ "non-parasitic",
+		 Genus == "Protaspa-lineage_X" ~ "parasitic",
+		 Genus == "Pelagostrobilidium" ~ "non-parasitic",
+		 Genus == "Rhytidocystis" ~ "parasitic",
+		 Genus == "Bathycoccus" ~ "non-parasitic",
+		 Genus == "Pelagomonadales_clade_B1" ~ "non-parasitic",
+		 Genus == "Poterioochromonas" ~ "non-parasitic",
+		 Genus == "MAST-8A_XX" ~ "non-parasitic",
+		 Genus == "Paralecudina"  ~ "parasitic",
+		 Genus == "Cladosporium" ~ "non-parasitic",
+		 Genus == "Triparma"~ "non-parasitic",
+		 Genus == "Ephelota" ~ "parasitic",
+		 Genus == "Pseudoperkinsus" ~ "parasitic",
+		 Genus == "Gregarinomorphea_X_GRE3_XX" ~ "parasitic",
+		 Genus == "Sphaeroforma"~ "parasitic",
+		 Genus == "Phagomyxa" ~ "parasitic",
+		 Genus == "Haplosporidium" ~ "parasitic",
+		 Genus == "Mastodia" ~ "non-parasitic",
+		 Genus == "Dolichomastigaceae-B" ~ "non-parasitic",
+		 Genus == "Talaromyces" ~ "non-parasitic",
+		 Genus == "LC104-lineage_X" ~ "parasitic",
+	)) %>% pull(parasites)
+
+
+bar.genus.parasitic.euk <- ggplot(melt.TG.genus.euk, aes(x = label, y = Abundance, fill = parasites)) +
+    geom_bar(stat = "identity", position = "fill") +
+    theme_classic() + scale_x_discrete(limits = list2$V1) +
+    xlab("Samples") +
+    ylab("Relative abundance") +
+    labs(fill= "Lifestyle") + theme(legend.position = "right", legend.title= element_text(size= 15), legend.text =  element_text(size=12), axis.title.y = element_text(size=12), axis.title.x = element_text(size=12), axis.text.x = element_text(angle = 45, hjust = 1))  +  scale_fill_manual(values = lifestyle.colors, limits = names(lifestyle.colors)) +
+    scale_y_continuous(labels = function(x) paste0(x*100, "%"))
+
+bar.genus.parasitic.euk     
+
+```
+#Dino_trophic mode 
+```{r}
+melt.TG.genus.Dino$trophic <- data.frame(melt.TG.genus.Dino) %>%
+    mutate(trophic = case_when( 
+ 	    Genus=="Gyrodinium" ~ "protozooplankton",
+  	  Genus=="Gymnodinium" ~ "phytoplankton",
+ 	    Genus=="Heterocapsa" ~ "mixoplankton",
+ 	    Genus=="Islandinium" ~ "protozooplankton",
+  	  Genus=="Dino-Group-I-Clade-1_X" ~ "protozooplankton",                          
+     	Genus=="Dino-Group-II-Clade-1_X" ~ "protozooplankton",      
+     	Genus=="Dino-Group-II-Clade-10-and-11_X" ~ "protozooplankton", 
+     	Genus=="Dino-Group-II-Clade-14_X" ~ "protozooplankton",     
+  	  Genus=="Dino-Group-II-Clade-52_X" ~ "protozooplankton",  
+  	  Genus=="Dino-Group-III_XX" ~ "protozooplankton",
+	)) %>% pull(trophic)
+
+melt.TG.genus.Dino <- melt.TG.genus.Dino %>%
+  arrange(trophic,Division,Class) %>%
+  mutate(Genus = factor(Genus, unique(Genus)))
+
+
+bar.Dinos.trophic.samples<- ggplot(melt.TG.genus.Dino, aes(x = label, y = Abundance, fill = trophic)) +
+    geom_bar(stat = "identity", position = "fill") +
+    theme_classic() + scale_x_discrete(limits = listdino$V1)+
+    xlab("Samples") + 
+    ylab("Relative abundance")  + ggtitle("Dinoflagellates") + labs(fill = " Trophic modes") + 
+     theme(plot.title = element_text(size=16, hjust = 0.5), legend.position = " ", axis.text.x = element_blank(), axis.title.x = element_blank(), axis.title.y = element_blank(),axis.text.y = element_blank()) +  scale_fill_manual(values =trophic.colors, limits = names(trophic.colors))+ scale_y_continuous(labels = function(x) paste0(x*100, "%"))
+           
+bar.Dinos.trophic.samples          
+           
+  
+```
+
+## dinos-lifestyle
+```{r}
+melt.TG.genus.Dino$parasites <- data.frame(melt.TG.genus.Dino) %>%
+    mutate(parasites = case_when( 
+ 	    Genus=="Gyrodinium" ~ "non-parasitic",
+  	  Genus=="Gymnodinium" ~ "non-parasitic",
+ 	    Genus=="Heterocapsa" ~ "non-parasitic",
+ 	    Genus=="Islandinium" ~ "non-parasitic",
+  	  Genus=="Dino-Group-I-Clade-1_X" ~ "parasitic",                             
+     	Genus=="Dino-Group-II-Clade-1_X" ~ "parasitic",      
+     	Genus=="Dino-Group-II-Clade-10-and-11_X" ~ "parasitic", 
+  	  Genus=="Dino-Group-II-Clade-14_X" ~ "parasitic",
+  	  Genus=="Dino-Group-II-Clade-52_X" ~ "parasitic",
+     	Genus=="Dino-Group-III_XX" ~ "parasitic",               
+	)) %>% pull(parasites)
+
+
+
+bar.Dinos.parasites.samples<- ggplot(melt.TG.genus.Dino, aes(x = label, y= Abundance, fill = parasites)) +
+    geom_bar(stat = "identity", position = "fill") +
+    theme_classic() + scale_x_discrete(limits = listdino$V1)+
+    xlab("Samples") +
+    ylab("Relative abundance")  + labs(fill= "Lifestyle") +
+    theme(legend.position = " ", axis.text.x = element_text(angle = 45, hjust = 1), axis.title.y = element_blank(), axis.title.x = element_text(size=12), axis.text.y = element_blank())  +  scale_fill_manual(values = lifestyle.colors, limits = names( lifestyle.colors)) +  scale_y_continuous(labels = function(x) paste0(x*100, "%")) 
+
+bar.Dinos.parasites.samples  
+  
+
+```
+
+```{r}
+
+ trophic <- (bar.genus.trophic.euk | bar.Dinos.trophic.samples) + plot_layout(guides = 'collect') + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+ lifestyle <- (bar.genus.parasitic.euk | bar.Dinos.parasites.samples ) + plot_layout(guides = 'collect', axes = "collect") +  theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+ Fig3 <- (trophic / lifestyle) + 
+  plot_layout(heights = c(1, 1)) 
+ 
+ 
+ Fig3 <- ggdraw() +
+  draw_plot(Fig3, 0, 0, 1, 1) +
+  draw_plot_label(c("A", "B"), c(0, 0), c(1, 0.55), size = 15)
+ 
+
+png("./IMAGES/Fig3.png",units = "in",width = 15, height = 11, res=300)
+Fig3
+dev.off()
+
+
+```
+
+
+
+### UpSet at class level
+
+
+## Upset class level labeling ASVs/species
+
+```{r, fig.height=10, fig.width=14, upset_class}
+
+
+# create set
+
+upset.MERGED.ALL.upset.euk <- upset_df_maker_function(ps.abund.euk)
+
+# create extra column with the sum of read abundance/OTU
+
+cn01 <- colnames(upset.MERGED.ALL.upset.euk)
+cn02 <- cn01[20:29]
+colnms = cn02
+
+upset.MERGED.ALL.upset.euk$AverageReads <- rowMeans(upset.MERGED.ALL.upset.euk[,colnms])
+
+text_size <- 30  
+
+ set.seed(42)
+  upset_figure_function <- function(upset_intersection_table) {
+
+# create sets
+  sections = colnames(upset_intersection_table)[2:11]
+
+# create sections table
+  upset_intersection_table[sections] = upset_intersection_table[sections] == 1
+  t(head(upset_intersection_table[sections], 10))
+
+# order class by supergroup and division
+  upset_intersection_table <- upset_intersection_table %>%
+  arrange(Supergroup, Division) %>%
+  mutate(Class = factor(Class, unique(Class)))
+
+  upset(upset_intersection_table,
+  sections,
+  height_ratio=0.2, width_ratio=0.2, 
+  set_sizes=(upset_set_size(
+     geom=geom_bar(height = text_size * 0.1), position='left') 
+     + ylab("N° of ASVs")),
+
+  matrix=(intersection_matrix(geom=geom_point(size= text_size * 0.1))),
+
+  base_annotations=list(
+    'Shared ASVs'=intersection_size(
+      mapping=aes(fill=Class), show.legend = FALSE,
+      counts = TRUE, 
+      text_colors = c(on_background="gray40", on_bar="gray40"), 
+      text = list(size=5, vjust=-0.7))
+          + scale_fill_manual(values = class_colors.euk)
+          
+    ),
+  
+  queries=list(upset_query(set = "seawater", fill="#9baae0")),
+
+  annotations = list('Mean number of reads'=(
+      ggplot(mapping=aes(y=AverageReads))
+      + geom_jitter(aes(color=Class), size=4, na.rm=TRUE, width = 0.2)
+      #+ geom_label_repel(aes(label= OTU), hjust=1, vjust=0, box.padding = 0.2, max.overlaps = 6, seed = 1)
+      + scale_color_manual(values = class_colors.euk) + ggtitle("A")
+      +  theme(plot.title = element_text(size=22, face = "bold"),legend.position="right") 
+        
+     )),
+
+  themes=upset_default_themes(text=element_text(size = 20)))
+ 
+  }
+
+
+  upsALL.euk <- upset_figure_function(upset.MERGED.ALL.upset.euk)
+  upsALL2.euk  <-  upsALL.euk + patchwork::plot_layout(heights=c(1.5, 1.5,1)) + theme(plot.margin = unit(c(1, 1, 1, 1), "cm")) 
+ upsALL2.euk
+
+```
+
+```{r}
+upset.MERGED.DINO.upset <- upset_df_maker_function(ps.abund.dino)
+cn01 <- colnames(upset.MERGED.DINO.upset)
+cn02 <- cn01[20:29]
+colnms = cn02
+upset.MERGED.DINO.upset$AverageReads <- rowMeans(upset.MERGED.DINO.upset[,colnms])
+ set.seed(42)
+
+  upset_figure_function <- function(upset_intersection_table) {
+
+# create sets
+  sections = colnames(upset_intersection_table)[2:11]
+
+# create sections table
+  upset_intersection_table[sections] = upset_intersection_table[sections] == 1
+  t(head(upset_intersection_table[sections], 10))
+
+# order class by supergroup and division
+  upset_intersection_table <- upset_intersection_table %>%
+  arrange(Supergroup, Division) %>%
+  mutate(Class = factor(Class, unique(Class)))
+
+  upset(upset_intersection_table,
+  sections,
+  height_ratio=0.2, width_ratio=0.2, 
+  set_sizes=(upset_set_size(
+     geom=geom_bar(height = text_size * 0.1), position='left') 
+     + ylab("N° of ASVs")),
+
+  matrix=(intersection_matrix(geom=geom_point(size = text_size * 0.1))),
+
+  base_annotations=list(
+    'Shared ASVs'=intersection_size(
+      mapping=aes(fill=Class), show.legend = FALSE,
+      counts = TRUE, 
+      text_colors = c(on_background="gray40", on_bar="gray40"), 
+      text = list(size=5, vjust=0.3))
+          + scale_fill_manual(values = class_colors.dino)
+          
+    ),
+  
+  queries=list(upset_query(set = "seawater", fill="#9baae0")),
+
+  annotations = list('Mean number of reads'=(
+      ggplot(mapping=aes(y=AverageReads))
+      + geom_jitter(aes(color=Class), size=4, na.rm=TRUE, width = 0.2)
+    #+ geom_label_repel(aes(label= OTU), hjust=1, vjust=0, box.padding = 0.2, max.overlaps = 6, seed = 1)
+      + scale_color_manual(values = class_colors.dino) + ggtitle ("B")
+      +  theme(plot.title = element_text(size=22,face = "bold"),legend.position="right", axis.title.y=element_text(vjust=0.5))
+        
+     )),
+
+  themes=upset_default_themes(text=element_text(size = 20)))
+ 
+  }
+upsDINO <- upset_figure_function(upset.MERGED.DINO.upset)
+
+upsDINO2  <-  upsDINO + patchwork::plot_layout(heights=c(1.5, 1.5, 1)) + theme(plot.margin = unit(c(1, 1, 1, 1), "cm"))
+
+upsDINO2
+
+
+
+
+```
+
+``` {r}
+#
+FigS3<-ggarrange(upsALL2.euk, upsDINO2, nrow=2, align="v", common.legend = FALSE, legend="right")
+
+png("./IMAGES/FigS3.png", units = "in", width = 18, height = 20, res = 300)
+FigS3
+dev.off()
+
+
+
+
+```
+
+### Heatmap order dino
+```{r}
+
+
+top20 <- names(sort(taxa_sums(ps.dino.g), decreasing=TRUE))[1:20]
+ps.dino.g.norm <- transform_sample_counts(ps.dino.g, function(x) x / sum(x))
+ps.top20 <- prune_taxa(top20, ps.dino.g.norm)
+tax.table.df <- as.data.frame(tax_table(ps.top20))
+asv.ids <- rownames(tax.table.df)
+new.labels <- paste(tax.table.df$Order, asv.ids, sep=" - ")
+otu.mat.t <- t(otu_table(ps.top20))
+tax.mat<-tax_table(ps.top20)
+
+rownames(otu.mat.t) <- new.labels
+rownames(tax.mat) <- new.labels
+table.met<-sample_data(ps.top20)
+ps.dino.g1 <- phyloseq(otu.mat.t,tax.mat,table.met)
+
+
+
+desired.order <- c("Dendrilla antarctica","Mycale acerata","Mycale sp.","Mycale bouryesnaultae","Myxilla (Burtonanchora) sp.","Iophon sp.","Isodictya sp.","Tedania sp.","undetermined Demospongiae","seawater")         
+
+metadata <- as.data.frame(sample_data(ps.dino.g1))
+ordered.sample.names <- character(0)
+for(cat in desired.order) {
+    cat.samples <- rownames(metadata[metadata$Samples_names == cat, ])
+    ordered.sample.names <- c(ordered.sample.names, cat.samples)
+}
+
+heatmap.DINO.ASVs <- plot_heatmap(ps.dino.g1,high = "#82314b",sample.label = "Samples_names", taxa.order = "Order", sample.order =ordered.sample.names , low = "#FFFFFF", na.value="white")+ theme(plot.title = element_text(size=16),axis.title.y = element_blank())
+
+heatmap.DINO.ASVs<-print(heatmap.DINO.ASVs + scale_fill_viridis(name = "Relative abundance"))
+ggsave("./IMAGES/figureS4.png", height =7, width = 9)
+
+
+
+
+```
+
+
+
+###  examine interannual changes in the diversity and community composition of microbial eukaryotes and especially dinoflagellates, associated with Antarctic sponges. 
+```{r}
+## Subset sponges present in three years
+
+ps.sponges.DINO.summer <- subset_samples(ps.dino, Genus %in% c("Mycale", "Dendrilla", "Myxilla (Burtonanchora)"))
+ps.sponges.DINO.summer<- filter_taxa(ps.sponges.DINO.summer, function (x) {sum(x) > 0}, prune=TRUE)
+sample_names(ps.sponges.DINO.summer)
+ps.sponges.euk.summer <- subset_samples(ps.euk, Genus %in% c("Mycale", "Dendrilla", "Myxilla (Burtonanchora)"))
+ps.sponges.euk.summer<- filter_taxa(ps.sponges.euk.summer, function (x) {sum(x) > 0}, prune=TRUE)
+
+```
+
+```{r}
+## 
+
+
+total.dino.summer <- median(sample_sums(ps.sponges.DINO.summer))
+  str_c("Median number of reads: ",total.dino.summer)
+  standf.dino.summer <- function(x, t=total.dino.summer) round(t * (x / sum(x)))
+  ps.sponges.DINO.summer1<- transform_sample_counts(ps.sponges.DINO.summer, standf.dino.summer)
+  ps.sponges.DINO.summer1
+
+whall.up.Dino.summer <- genefilter_sample(ps.sponges.DINO.summer1, f1.c, A=1) 
+ps.abund.Dino.summer <- prune_taxa(whall.up.Dino.summer, ps.sponges.DINO.summer1)
+
+####  Dino-Group 1 Clade 1
+physeq.Dino.I <- subset_taxa(ps.sponges.DINO.summer1, Genus == "Dino-Group-I-Clade-1_X")
+
+melt.TG.genus.Dino.I <- psmelt(physeq.Dino.I)
+
+
+bar.Dinos.ASV.I <- ggplot(melt.TG.genus.Dino.I, aes(x = Summer, y = Abundance, fill = OTU)) +
+    geom_bar(stat = "identity", position = "fill") +
+    theme_classic() +
+    xlab("Summer") + 
+    ylab("Relative abundance") + theme(legend.title = element_blank())+
+    facet_grid(~sample_Genus)  + ggtitle("B") +
+    theme(strip.background = element_rect(fill = "white", color = "white"), strip.text = element_text(size = 18), legend.text = element_text(size=15), axis.title.x = element_text(size=15), axis.title.y = element_text(size=15), plot.title = element_text(size=20, face = "bold", hjust = 0))  +
+    scale_fill_manual(values =as.vector(stepped2())) +
+     scale_y_continuous(labels = function(x) paste0(x*100, "%"))  
+
+bar.Dinos.ASV.I 
+
+```
+
+
+
+
+### Beta diversity (dinos)
+
+```{r}
+
+ps.dino.summer.rel <- transform_sample_counts(ps.sponges.DINO.summer, function(x) x/sum(x))
+ps.dino.summer.rel <- filter_taxa(ps.dino.summer.rel, function(x) sum(x) > .001, TRUE)
+ps.dino.summer.rel.clr<-microbiome::transform(ps.dino.summer.rel, 'clr', shift = 1)
+set.seed(123)
+euc.dino.summer <- ordinate(ps.dino.summer.rel.clr, method = "NMDS", distance = "euclidean", formula = NULL)
+
+present.samples <- unique(ps.dino.summer.rel.clr@sam_data$Samples_names)
+filtered.sponge.colors <- sponge.colors1[names(sponge.colors1) %in% present.samples]
+sample_names(ps.dino.summer.rel.clr)
+
+euc.plot.dino.summer <- plot_ordination(ps.dino.summer.rel.clr, euc.dino.summer, type = "samples", axes = 1:2,
+                                 color = "Samples_names", shape = "Summer", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + 
+  scale_color_manual(name= "Samples",values = filtered.sponge.colors,
+                     limits = names(filtered.sponge.colors))  + theme_bw() + labs(subtitle = "Dinoflagellates")+
+  annotation_custom(textGrob(label = "stress = 0.152", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 12))) +
+  theme(legend.position = "right", 
+        plot.subtitle = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=15, face = "italic"), axis.title.x = element_text(size=15), axis.title.y = element_text(size=15),
+        legend.title = element_text(size=17))
+
+euc.plot.dino.summer
+
+
+metadata.dino.summer<- as(sample_data(ps.dino.summer.rel.clr), "data.frame")
+distance.dino.host<-phyloseq::distance(ps.dino.summer.rel.clr, method="euclidean",type = "samples")
+set.seed(1246)
+adonis.dino.host.summer<- adonis2(phyloseq::distance(ps.dino.summer.rel.clr, method="euclidean") ~ Genus*Summer,
+                      data = metadata.dino.summer)
+
+dispersion.dino.host<-betadisper(distance.dino.host, group=metadata.dino.summer$Genus)
+dispersion.dino.host
+
+permutest(dispersion.dino.host)
+anova(dispersion.dino.host)
+adonis.dino.host.summer %>%
+  kbl %>%
+  kable_classic(full_width = F, html_font = "Times New Roman") %>%
+  save_kable(file = "Permanova.dino.summer.host.html", self_contained = T)
+
+
+
+### bray-dino
+
+ps.dino.summer.rel.he<- transform_sample_counts(ps.dino.summer.rel, function(x) sqrt(x / sum(x,na.rm = T)))
+set.seed(123)
+bray.dino.summer <- ordinate(ps.dino.summer.rel.he, method = "NMDS", distance = "bray", formula = NULL)
+
+bray.plot.dino.summer <- plot_ordination(ps.dino.summer.rel.he, bray.dino.summer, type = "samples", axes = 1:2,
+                                 color = "Samples_names", shape = "Summer", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + 
+  scale_color_manual(name= "Samples",values = filtered.sponge.colors,
+                     limits = names(filtered.sponge.colors))  + theme_bw() + labs(subtitle = "Dinoflagellates")+
+  annotation_custom(textGrob(label = "stress = 0.092", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 12))) +
+  theme(legend.position = "right", 
+        plot.subtitle = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=15, face = "italic"), axis.title.x = element_text(size=15), axis.title.y = element_text(size=15),
+        legend.title = element_text(size=17))
+
+bray.plot.dino.summer
+
+
+
+
+
+
+### Permanova
+metadata.dino.summer.bray<- as(sample_data(ps.dino.summer.rel.he), "data.frame")
+distance.dino.host.bray<-phyloseq::distance(ps.dino.summer.rel.he, method="bray",type = "samples")
+
+set.seed(1246)
+adonis.dino.host.summer.bray<- adonis2(phyloseq::distance(ps.dino.summer.rel.he, method="bray") ~ Genus*Summer,
+                      data = metadata.dino.summer)
+
+dispersion.dino.host.bray<-betadisper(distance.dino.host.bray, group=metadata.dino.summer.bray$Genus)
+dispersion.dino.host.bray
+
+permutest(dispersion.dino.host.bray)
+anova(dispersion.dino.host.bray)
+
+adonis.dino.host.summer.bray %>%
+  kbl %>%
+  kable_classic(full_width = F, html_font = "Times New Roman") %>%
+  save_kable(file = "Permanova.dinosummerbray.html", self_contained = T)
+
+```
+
+
+
+### Beta diversity (non-dino)
+```{r}
+psnmds.euk.summer <- subset_samples(ps.sponges.euk.summer, sample_names(ps.sponges.euk.summer) != "E27.3")
+psnmds.euk.summer<- filter_taxa(psnmds.euk.summer, function (x) {sum(x) > 0}, prune=TRUE)
+psnmds.euk.summer.rel <- transform_sample_counts(psnmds.euk.summer, function(x) x/sum(x))
+psnmds.euk.summer.rel <- filter_taxa(psnmds.euk.summer.rel, function(x) sum(x) > .001, TRUE)
+ps.euk.summer.rel.clr<- microbiome::transform(psnmds.euk.summer.rel, 'clr', shift = 1)
+set.seed(123)
+euc.euk.summer <- ordinate(ps.euk.summer.rel.clr, method = "NMDS", distance = "euclidean", formula = NULL)
+
+present.samples.euk <- unique(ps.euk.summer.rel.clr@sam_data$Samples_names)
+filtered.sponge.colors.euk <- sponge.colors1[names(sponge.colors1) %in% present.samples.euk]
+
+euc.plot.euk.summer <- plot_ordination(ps.euk.summer.rel.clr, euc.euk.summer, type = "samples", axes = 1:2,
+                                 color = "Samples_names",  shape = "Summer", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + 
+  scale_color_manual(name= "Samples",values = filtered.sponge.colors.euk ,
+                     limits = names(filtered.sponge.colors.euk )) + theme_bw() + labs(title= "A", subtitle = "Non-dino community") +
+  annotation_custom(textGrob(label = "stress = 0.221", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 12))) +
+  theme(legend.position = " ",
+        plot.title = element_text(size=20,hjust = 0,face = "bold"),
+        plot.subtitle = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=15, face = "italic"), axis.title.x = element_text(size=15), axis.title.y = element_text(size=15),
+        legend.title = element_text(size=17))
+euc.plot.euk.summer
+
+
+
+metadata.euk.summer.euc<- as(sample_data(ps.euk.summer.rel.clr), "data.frame")
+set.seed(1246)
+adonis.euk.host.summer<- adonis2(phyloseq::distance(ps.euk.summer.rel.clr, method="euclidean") ~ Genus*Summer,
+                      data = metadata.euk.summer.euc)
+
+
+adonis.euk.host.summer %>%
+  kbl %>%
+  kable_classic(full_width = F, html_font = "Times New Roman") %>%
+  save_kable(file = "Permanovaeuk.summer.euc.html", self_contained = T)
+
+
+distance.euk.host<-phyloseq::distance(ps.euk.summer.rel.clr,method="euclidean",type = "samples")
+set.seed(1246)
+dispersion.euk.host<-betadisper(distance.euk.host, group=metadata.euk.summer.euc$Genus)
+dispersion.euk.host
+
+permutest(dispersion.euk.host)
+
+anova(dispersion.euk.host)
+
+
+
+
+
+psnmds.euk.summer1 <- subset_samples(ps.sponges.euk.summer, !sample_names(ps.sponges.euk.summer) %in% "E30.3")
+psnmds.euk.summer1<- filter_taxa(psnmds.euk.summer1, function (x) {sum(x) > 0}, prune=TRUE)
+psnmds.euk.summer.rel1 <- transform_sample_counts(psnmds.euk.summer1, function(x) x/sum(x))
+psnmds.euk.summer.rel1 <- filter_taxa(psnmds.euk.summer.rel1, function(x) sum(x) > .001, TRUE)
+ps.euk.summer.rel.he<- transform_sample_counts(psnmds.euk.summer.rel1, function(x) sqrt(x / sum(x,na.rm = T)))
+set.seed(123)
+bray.euk.summer <- ordinate(ps.euk.summer.rel.he, method = "NMDS", distance = "bray", formula = NULL)
+
+
+present.samples.euk.bray <- unique(ps.euk.summer.rel.he@sam_data$Samples_names)
+filtered.sponge.colors.euk.bray <- sponge.colors1[names(sponge.colors1) %in% present.samples.euk.bray]
+bray.plot.euk.summer <- plot_ordination(ps.euk.summer.rel.he, bray.euk.summer, type = "samples", axes = 1:2,
+                                 color = "Samples_names",  shape = "Summer", label = NULL, title = NULL,
+                                 justDF = FALSE) +
+  geom_point(size = 5) + 
+  scale_color_manual(name= "Samples",values = filtered.sponge.colors.euk.bray ,
+                     limits = names(filtered.sponge.colors.euk.bray)) + theme_bw() + labs(title= "A", subtitle = "Non-dino community") +
+  annotation_custom(textGrob(label = "stress = 0.169", x = 0.75, y = 0.90, hjust = 0,  gp = gpar(fontsize = 12))) +
+  theme(legend.position = " ",
+        plot.title = element_text(size=20,hjust = 0,face = "bold"),
+        plot.subtitle = element_text(size=18,hjust = 0.5,face = "bold"),
+        legend.text=element_text(size=15, face = "italic"), axis.title.x = element_text(size=15), axis.title.y = element_text(size=15),
+        legend.title = element_text(size=17))
+bray.plot.euk.summer
+
+
+metadata.euk.summer.bray<- as(sample_data(ps.euk.summer.rel.he), "data.frame")
+set.seed(1246)
+adonis.euk.host.summer.bray<- adonis2(phyloseq::distance(ps.euk.summer.rel.he, method="bray") ~ Genus*Summer,
+                      data = metadata.euk.summer.bray)
+
+
+adonis.euk.host.summer.bray %>%
+  kbl %>%
+  kable_classic(full_width = F, html_font = "Times New Roman") %>%
+  save_kable(file = "Permanovaeuk.summer.bray.html", self_contained = T)
+
+
+
+
+distance.euk.host.bray<-phyloseq::distance(ps.euk.summer.rel.he,method="bray",type = "samples")
+set.seed(1246)
+dispersion.euk.host.bray<-betadisper(distance.euk.host.bray, group=metadata.euk.summer.bray$Genus)
+dispersion.euk.host.bray
+
+permutest(dispersion.euk.host.bray)
+
+anova(dispersion.euk.host.bray)
+
+```
+
+# Merge plots
+```{r}
+combined.bdiv.summer <-  euc.plot.euk.summer + euc.plot.dino.summer
+combined.bdiv.summer <- combined.bdiv.summer+ plot_layout(guides = "collect") + theme (legend.position = "right")
+
+figure5 <-  combined.bdiv.summer/ bar.Dinos.ASV.I
+pdf("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/Fig5.pdf", width = 15, height = 12)
+figure5
+dev.off() 
+
+png("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/Fig5.png", units = "in", width =15, height =12, res = 300)
+figure5
+dev.off()
+
+combined.bdiv.summer.bray <-  bray.plot.euk.summer + bray.plot.dino.summer
+combined.bdiv.summer.bray <- combined.bdiv.summer.bray+ plot_layout(guides = "collect") + theme (legend.position = "right")
+
+figure5.bray <-  combined.bdiv.summer.bray/ bar.Dinos.ASV.I
+pdf("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/Fig5bray.pdf", width = 15, height = 12)
+figure5.bray
+dev.off() 
+
+png("C:/Users/maril/OneDrive/Documentos/PEERJ/IMAGES/Fig5bray.png", units = "in", width =15, height =12, res = 300)
+figure5.bray
+dev.off()
+```
+
+
+
+## Non-dino alpha diversity-summer
+```{r}
+
+
+alpha_diversity_summer <- function(ps, root_tree = TRUE) {
+  set.seed(TRUE)
+  ps.raref <- rarefy_even_depth(ps, sample.size = min(sample_sums(ps)),
+                                rngseed = TRUE, replace = FALSE, trimOTUs = TRUE, verbose = TRUE)
+  index.raref <- estimate_richness(ps.raref, split = TRUE, measures = c("Observed", "Shannon"))
+  asv.raref <- as.data.frame(otu_table(ps.raref))
+  tree.raref <- phy_tree(ps.raref)
+  pd.raref <- pd(asv.raref, tree.raref, include.root = root_tree)
+  meta.raref <- as.data.frame(sample_data(ps.raref))
+  meta.raref$Phylogenetic_Diversity <- pd.raref$PD
+  phylogenetic.diversity.raref <- meta.raref[, c("Summer", "Phylogenetic_Diversity")]
+  indexes.alpha.raref <- cbind(index.raref, phylogenetic.diversity.raref)
+  return(list(ps.raref = ps.raref, indexes.alpha.raref = indexes.alpha.raref))
+}
+
+# Non-dino community (euk)
+ps.sponges.euk.summer@phy_tree # Rooted tree
+sponges.euk.summer.results <- alpha_diversity_summer(ps.sponges.euk.summer, root_tree = TRUE)
+ps.sponges.euk.summer.raref <- sponges.euk.summer.results$ps.raref
+indexes.alpha.sponges.euk.summer.raref <- sponges.euk.summer.results$indexes.alpha.raref
+datatable(indexes.alpha.sponges.euk.summer.raref)
+
+
+
+
+# Non-dino community (euk)
+ps.sponges.DINO.summer@phy_tree 
+sponges.dino.summer.results <- alpha_diversity_summer(ps.sponges.DINO.summer, root_tree = TRUE)
+ps.sponges.dino.summer.raref <- sponges.dino.summer.results$ps.raref
+indexes.alpha.sponges.dino.summer.raref <- sponges.dino.summer.results$indexes.alpha.raref
+datatable(indexes.alpha.sponges.dino.summer.raref)
+
+```
+
+
+## Non-dino alpha diversity plot
+```{r}
+
+my.comparisons <- list( c("2019", "2020"), c("2019", "2021"),c("2020","2021"))
+
+
+
+# Data frames for sample information and labels
+richness.euk.summer <- data.frame(Summer = c("2019", "2020","2021"), Sample_number = c(6,10,3), y_pos = c(5.1,6.1,5.1))
+richness.euk.summer$Label <- paste("N=", richness.euk.summer$Sample_number, sep="")
+
+
+shannon.euk.summer <- data.frame(Summer = c("2019", "2020","2021"), Sample_number = c(6,10,3), y_pos = c(1.7,1.8, 1.7))
+shannon.euk.summer$Label <- paste("N=", shannon.euk.summer$Sample_number, sep="")
+
+pd.euk.summer <- data.frame(Summer = c("2019", "2020","2021"), Sample_number = c(6,10,3), y_pos = c(2.7,3.1, 2.1))
+pd.euk.summer$Label <- paste("N=", pd.euk.summer$Sample_number, sep="")
+
+
+
+
+# Function to create richness plots
+create_alpha_plot_summer <- function(ps, measure, y_label, title, c_data, y_limits) {
+  plot <- plot_richness(ps, x = "Summer", measures = measure, scales = "free_y") +
+    geom_boxplot(aes(fill = Summer), outlier.shape = NA, alpha = 0.1, position = "identity") +
+    geom_jitter(aes(color = Summer), position = position_jitter(width = 0.2), size = 1.5, alpha = 0.6) +
+    scale_fill_manual(values = c("gray", "orange", "steelblue"), guide = guide_legend(title = NULL)) +
+    scale_color_manual(values = c("gray", "orange", "steelblue"), guide = "none") +
+    labs(x = "Summer", y = y_label, title = title) +
+    geom_text(data = c_data, aes(x = Summer, y = y_pos, label = Label), vjust = -0.5, size = 3.5) +
+    theme_classic() +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(size = 12, hjust = 0.5),
+      strip.text.x = element_blank(),
+      axis.title.y = element_text(size = 15, face = "bold", margin = margin(l = 10, r = 10))
+    ) +
+    ylim(y_limits)
+  plot$layers <- plot$layers[-1]
+  return(plot)
+}
+
+# Create plots for eukaryotic community
+euk.richness.summer <- create_alpha_plot_summer(ps.sponges.euk.summer.raref, "Observed", "Non-dino community", "Observed richness", richness.euk.summer, c(0, NA)) + labs(x=NULL) + theme( axis.ticks.x = element_blank(),
+      axis.text.x = element_blank()) #+ stat_compare_means(paired = FALSE, label = "p.signif", comparisons = my.comparisons, method.args = list(exact = FALSE), label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) 
+
+euk.shannon.summer <- create_alpha_plot_summer(ps.sponges.euk.summer.raref, "Shannon", NULL, "Shannon",       shannon.euk.summer, c(0, NA)) + labs(x=NULL) + theme( axis.ticks.x = element_blank(),
+      axis.text.x = element_blank()) # + stat_compare_means(paired = FALSE, label = "p.signif", comparisons = my.comparisons, method.args = list(exact = FALSE), label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) 
+
+# Create phylogenetic diversity plot for eukaryotic community
+
+pd.plot.euk.summer <- ggboxplot(indexes.alpha.sponges.euk.summer.raref, x = "Summer", y = "Phylogenetic_Diversity", legend = " ") +
+  geom_boxplot(aes(fill = Summer), outlier.shape = NA, alpha = 0.1, position = "identity") +
+  geom_jitter(aes(color = Summer), position = position_jitter(width = 0.2), size = 1.5, alpha = 0.6) +
+  scale_fill_manual(values = c("gray", "orange", "steelblue"), guide = guide_legend(title = NULL)) +
+  scale_color_manual(values = c("gray", "orange", "steelblue"), guide="none") +
+  labs(x = NULL, y = NULL, title = "Phylogenetic Diversity") +
+  #stat_compare_means(paired = FALSE, label = "p.signif", comparisons = my.comparisons, method.args = list(exact = FALSE), label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) + 
+  geom_text(data = pd.euk.summer, aes(x = Summer, y = y_pos, label = Label), vjust = -0.5, size = 3.5) +
+  theme_classic() +
+  theme(legend.position = " ",
+    plot.title = element_text(size = 12, hjust = 0.5),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.title.y = element_text(margin = margin(r = 10))
+  ) +
+  ylim(0, NA)
+pd.plot.euk.summer$layers <- pd.plot.euk.summer$layers[-1]
+
+
+```
+                                                                            
+
+
+## Dino alpha diversity plot
+```{r}
+
+
+richness.dino.summer <- data.frame(Summer = c("2019", "2020","2021"), Sample_number = c(7,10,3), y_pos = c(6.1,7.1, 3.1))
+richness.dino.summer$Label <- paste("N=", richness.dino.summer$Sample_number, sep="")
+shannon.dino.summer <- data.frame(Summer = c("2019", "2020","2021"), Sample_number = c(7,10,3), y_pos = c(1.4,1.4, 0.5))
+shannon.dino.summer$Label <- paste("N=", shannon.dino.summer$Sample_number, sep="")
+
+pd.dino.summer <- data.frame(Summer = c("2019", "2020","2021"), Sample_number = c(7,10,3), y_pos = c(0.5,0.5, 0.5))
+pd.dino.summer$Label <- paste("N=", pd.dino.summer$Sample_number, sep="")
+
+
+# Create plots for dinoflagellate community
+dino.richness.summer <- create_alpha_plot_summer(ps.sponges.dino.summer.raref, "Observed", "Dinoflagellates", NULL, richness.dino.summer, c(0, NA))+ labs(x= "Summer") + theme(axis.title.x = element_text(size=12), axis.text.x = element_text(size=10)) # + stat_compare_means(paired = FALSE, label = "p.signif", comparisons = my.comparisons, method.args = list(exact = FALSE), label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) 
+dino.richness.summer
+
+dino.shannon.summer <- create_alpha_plot_summer(ps.sponges.dino.summer.raref, "Shannon", NULL, NULL, shannon.dino.summer, c(0, NA)) + labs(x= "Summer")  + theme(axis.title.x = element_text(size=12), axis.text.x = element_text(size=10)) + stat_compare_means(paired = FALSE, label = "p.signif", comparisons = my.comparisons, method.args = list(exact = FALSE), label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) 
+dino.shannon.summer
+
+# Create phylogenetic diversity plot for dinoflagellate community
+pd.plot.dino.summer <- ggboxplot(indexes.alpha.sponges.dino.summer.raref, x = "Summer", y = "Phylogenetic_Diversity", legend = " ") +
+  geom_boxplot(aes(fill = Summer), outlier.shape = NA, alpha = 0.1, position = "identity") +
+  geom_jitter(aes(color = Summer), position = position_jitter(width = 0.2), size = 1.5, alpha = 0.6) +
+  scale_fill_manual(values = c("gray", "orange", "steelblue")) +
+  scale_color_manual(values = c("gray", "orange", "steelblue")) +
+  labs(x = "Summer", y = NULL, title = " ") +
+  #stat_compare_means(paired = FALSE, label = "p.signif", comparisons = my.comparisons, method.args = list(exact = FALSE), label.x.npc = "center", label.y.npc = "top", hide.ns = TRUE) +
+  geom_text(data = pd.dino.summer, aes(x = Summer, y = y_pos, label = Label), vjust = -0.5, size = 3.5) +
+  theme_classic() +
+  theme(legend.position = " ",
+    axis.title.x = element_text(size=12),    
+    axis.text.x = element_text(size=10),
+    axis.title.y = element_text(margin = margin(r = 10))
+  ) +  ylim(0,NA)
+
+pd.plot.dino.summer$layers <- pd.plot.dino.summer$layers[-1]
+
+    
+
+```
+
+
+# Merge plots
+```{r}
+
+merge.euk.summer<- euk.richness.summer + euk.shannon.summer + pd.plot.euk.summer
+merge.dino.summer<- (dino.richness.summer + dino.shannon.summer + pd.plot.dino.summer) + plot_layout(axes = "collect")
+
+Fig4 <- merge.euk.summer / merge.dino.summer
+png("./IMAGES/alphadiv.merge.raref.SUMMER.png", units = "in", width =12, height =10 , res = 300)
+Fig4
+dev.off()
+
+```
+
+#Extract identifiers of ASVs from Dino-Group-I-Clade-1
+```{r}
+ASV.dino.I<- subset_taxa(ps.dino, Family == "Dino-Group-I-Clade-1")
+tax.ASV.dino.I <- data.frame(ASV.dino.I@tax_table)
+write.table(rownames(tax.ASV.dino.I), "./ASVsdinoI.txt", row.names = F, quote = F, col.names = F)
+
+```
+
+## EPA analysis 
+```{bash}
+#Extract sequence of ASVs from Dino-Group-I-Clade-1
+seqkit grep -f ASVsdinoI.txt filteredASV_sequence.fa > ASVsdino.fa
+
+#Align reference sequences in mafft
+mafft --thread 10 --auto sequenceall.fasta > seqallrefe.fasta
+
+#Trim the alignmnet
+trimal -in seqallrefe.fasta -out seqallrefe.trimal.fasta -automated1
+
+#Make Reference sequences tree
+nohup raxmlHPC-PTHREADS -T 10 -m GTRCAT -e 0.001 -p 12345 -f a -N 100 -x 12345 -n dinorax -s seqallrefe.trimal.fasta &
+
+#Add the ASVs and outgroup to the Reference alignment
+
+mafft --thread 10 --addfragments V4api.fasta --reorder seqallrefe.fasta > V4align.fasta
+
+#Filter the alignment 
+trimal -in V4align.fasta -out V4align.trimal.fasta -automated1
+
+#Place ASVs in reference tree using RaxML-EPA
+nohup raxmlHPC-PTHREADS -T 20 -m GTRCAT -f v -G 0.2 -n spon_dino_epa -s V4align.trimal.fasta -t RAxML_bestTree.dinorax &
+
+#Clean the tree and view in FigTree 
+sed 's/QUERY___//g' RAxML_labelledTree.spon_dino_epa | sed 's/\[I[0-9]*\]//g' > RAxML_placement_tree_spon_dino.tre
+
+```
